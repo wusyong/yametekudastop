@@ -296,6 +296,13 @@ pub struct Window {
   pub(crate) window: gtk::ApplicationWindow,
 }
 
+impl fmt::Debug for Window {
+  fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fmtr.pad("Window { .. }")
+  }
+}
+
+/// Base Window functions.
 impl Window {
   pub(crate) fn new<T>(
     event_loop_window_target: &EventLoopWindowTarget<T>,

@@ -188,12 +188,12 @@ impl<T: 'static> EventLoop<T> {
         .expect("Window not found in the application!");
       window.connect_delete_event(move |_, _| {
         windows_rc.borrow_mut().remove(&id);
-        tx_clone
-          .send(Event::WindowEvent {
-            window_id: id,
-            event: WindowEvent::CloseRequested,
-          })
-          .expect("Failed to send closed window event!");
+        if let Err(e) = tx_clone.send(Event::WindowEvent {
+          window_id: id,
+          event: WindowEvent::CloseRequested,
+        }) {
+          log::warn!("Failed to send close window event to event channel: {}", e);
+        }
 
         Inhibit(false)
       });
@@ -202,23 +202,12 @@ impl<T: 'static> EventLoop<T> {
     // Send StartCause::Init event
     let tx_clone = event_tx.clone();
     app.connect_activate(move |_| {
-      tx_clone.send(Event::NewEvents(StartCause::Init)).unwrap();
+      if let Err(e) = tx_clone.send(Event::NewEvents(StartCause::Init)) {
+        log::warn!("Failed to send init event to event channel: {}", e);
+      }
     });
     app.activate();
 
-    /*
-    // User events
-    let keep_running_ = keep_running.clone();
-    let tx_clone = event_tx.clone();
-    user_event_rx.attach(Some(&context), move |event| {
-      if *keep_running_.borrow() {
-        tx_clone.send(Event::UserEvent(event)).unwrap();
-        glib::Continue(true)
-      } else {
-        glib::Continue(false)
-      }
-    });
-    */
     let context = MainContext::default();
     context.push_thread_default();
     let window_target = self.window_target;
@@ -228,7 +217,9 @@ impl<T: 'static> EventLoop<T> {
     idle_add_local(move || {
       // User event
       if let Ok(event) = user_event_rx.try_recv() {
-        let _ = event_tx.send(Event::UserEvent(event));
+        if let Err(e) = event_tx.send(Event::UserEvent(event)) {
+          log::warn!("Failed to send user event to event channel: {}", e);
+        }
       }
 
       match control_flow {
