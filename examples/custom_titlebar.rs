@@ -119,16 +119,12 @@ fn main() -> wry::Result<()> {
   event_loop.run(move |event, _, control_flow| {
     *control_flow = ControlFlow::Poll;
 
-    match event {
-      Event::WindowEvent {
-        event: WindowEvent::CloseRequested,
-        ..
-      } => *control_flow = ControlFlow::Exit,
-      _ => (),
-    }
-
     if *close.borrow() {
         let _ = webview.take();
+    }
+
+    if webview.is_none() {
+      *control_flow = ControlFlow::Exit;
     }
   });
 }
