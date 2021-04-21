@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 fn main() -> wry::Result<()> {
+  use std::{rc::Rc, cell::RefCell};
   use wry::{
     application::{
       event::{Event, WindowEvent},
@@ -49,7 +50,9 @@ fn main() -> wry::Result<()> {
         </script>
       "#;
 
-  let handler = |window: &Window, req: RpcRequest| {
+  let close = Rc::new(RefCell::new(false));
+  let close_ = close.clone();
+  let handler = move |window: &Window, req: RpcRequest| {
     if req.method == "minimize" {
       window.set_minimized(true);
     }
@@ -60,14 +63,13 @@ fn main() -> wry::Result<()> {
         window.set_maximized(false);
       }
     }
-    /* TODO handle close
     if req.method == "close" {
-      proxy.close().unwrap();
+        close_.replace(true);
+
     }
-    */
     None
   };
-  let _webview = WebViewBuilder::new(window)
+  let mut webview = Some(WebViewBuilder::new(window)
     .unwrap()
     .with_url(url)?
     .with_rpc_handler(handler)
@@ -112,7 +114,7 @@ fn main() -> wry::Result<()> {
         }, 500);
       "#,
     )
-    .build()?;
+    .build()?);
 
   event_loop.run(move |event, _, control_flow| {
     *control_flow = ControlFlow::Poll;
@@ -123,6 +125,10 @@ fn main() -> wry::Result<()> {
         ..
       } => *control_flow = ControlFlow::Exit,
       _ => (),
+    }
+
+    if *close.borrow() {
+        let _ = webview.take();
     }
   });
 }
