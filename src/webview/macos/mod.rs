@@ -60,7 +60,7 @@ impl InnerWebView {
     _data_directory: Option<PathBuf>,
   ) -> Result<Self> {
     // Function for rpc handler
-    extern "C" fn did_receive(this: &Object, _: Sel, _: id, msg: id) {
+    extern "C" fn did_receive(this: &Object, _: Sel, _: id, msg: id, reply: id) {
       // Safety: objc runtime calls are unsafe
       unsafe {
         let function = this.get_ivar::<*mut c_void>("function");
@@ -86,6 +86,14 @@ impl InnerWebView {
             eprintln!("{}", e);
           }
         }
+
+        // This will panic!
+        // How do I get the reply handler here?!?!
+        // replyHandler:(void (^)(id reply, NSString *errorMessage))replyHandler;
+        // https://developer.apple.com/documentation/webkit/wkscriptmessagehandlerwithreply/3585111-usercontentcontroller?language=objc
+        let reply: extern "C" fn(id, id) = std::mem::transmute(reply);
+        let mut ok = NSString::new("Hello");
+        reply(&mut *ok.0, null_mut());
       }
     }
 
@@ -203,8 +211,8 @@ impl InnerWebView {
           Some(mut cls) => {
             cls.add_ivar::<*mut c_void>("function");
             cls.add_method(
-              sel!(userContentController:didReceiveScriptMessage:),
-              did_receive as extern "C" fn(&Object, Sel, id, id),
+              sel!(userContentController:didReceiveScriptMessage:replyHandler:),
+              did_receive as extern "C" fn(&Object, Sel, id, id, id),
             );
             cls.register()
           }
@@ -215,7 +223,8 @@ impl InnerWebView {
 
         (*handler).set_ivar("function", rpc_handler_ptr as *mut _ as *mut c_void);
         let external = NSString::new("external");
-        let _: () = msg_send![manager, addScriptMessageHandler:handler name:external];
+        let page_world: id = msg_send![class!(WKContentWorld), pageWorld];
+        let _: () = msg_send![manager, addScriptMessageHandlerWithReply:handler contentWorld:page_world name:external];
         rpc_handler_ptr
       } else {
         null_mut()
